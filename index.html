@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Cash Bill Book Entry System - work01 Enhanced</title>
+    <title>Dynamic Cash Bill Book Entry System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -189,30 +189,26 @@
             color: #0f172a;
         }
         
-        /* Enhanced Direct Inline Input Cell Styling */
         .editable-input { 
-            width: 95%; 
-            padding: 6px 8px; 
+            width: 90%; 
+            padding: 4px; 
             text-align: center; 
             border: 1px solid transparent; 
             background: transparent;
             font-size: 14px;
-            font-weight: 500;
-            color: #1e293b;
-            border-radius: 6px;
+            border-radius: 4px;
             transition: all 0.2s ease;
         }
 
         .editable-input:hover { 
-            border: 1px dashed #94a3b8; 
-            background: #f1f5f9; 
+            border: 1px dashed #cbd5e1; 
+            background: #fefce8; 
         }
 
-        .editable-input:focus { 
+        .editable-input.active-focus { 
             border: 1px solid #2563eb; 
             background: #eff6ff; 
             outline: none; 
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
         }
 
         .logo-wrapper { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -246,15 +242,23 @@
 </head>
 <body>
 
+    <!-- DISABLED/COMMENTED OUT: Notification Toast Banner (Confirm Update Balloon) -->
+    <!--
+    <div id="systemToast" class="no-print hidden fixed top-6 left-1/2 -translate-x-1/2 z-[100] max-w-md w-[90%] bg-slate-900/95 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-3 border-2 border-slate-700 text-sm font-semibold transition-all transform duration-300">
+        <span id="systemToastIcon" class="text-xl">⚠️</span>
+        <span id="systemToastMsg">ข้อความแจ้งเตือน</span>
+    </div>
+    -->
+
     <!-- Custom Confirmation Modal for Delete All -->
     <div id="deleteModal" class="no-print hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 text-center space-y-4">
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">🗑️</div>
-            <h3 class="text-lg font-bold text-slate-800 m-0">ยืนยันการลบข้อมูลทั้งหมด?</h3>
-            <p id="deleteModalNotice" class="text-xs text-slate-500 m-0">รายการบันทึกทั้งหมดและตารางคำนวณจะถูกลบออกจากระบบ</p>
+            <h3 class="text-lg font-bold text-slate-800 m-0">ยืนยันการลบข้อมูล?</h3>
+            <p id="deleteModalNotice" class="text-xs text-slate-500 m-0">รายการบันทึกทั้งหมดจะถูกลบออกจากระบบ</p>
             <div class="flex items-center gap-3 pt-2">
                 <button onclick="closeDeleteModal()" class="flex-1 py-2 px-4 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50">ยกเลิก</button>
-                <button onclick="confirmDeleteAll()" class="flex-1 py-2 px-4 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">ลบข้อมูลทั้งหมด</button>
+                <button onclick="confirmDeleteAll()" class="flex-1 py-2 px-4 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">ลบข้อมูล</button>
             </div>
         </div>
     </div>
@@ -277,10 +281,10 @@
 
     <div class="max-w-4xl mx-auto mb-6 text-center no-print">
         <h2 class="text-2xl font-bold text-slate-800">Cash Bill Book Entry System</h2>
-        <p class="text-xs text-slate-500 mt-1">Reference Base: work01 (Voice Stream & Direct Cell Editing)</p>
+        <p class="text-xs text-slate-500 mt-1">Single-Phrase Voice Stream & Continuous Entry Log System (or0)</p>
         <div id="voiceStatusBadge" class="hidden mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
             <span class="w-2.5 h-2.5 rounded-full bg-purple-600 animate-ping"></span>
-            <span id="voiceStatusText">🎤 Listening for voice commands (e.g. "อ 1 30", "ป 1 75", "ม 1 50")...</span>
+            <span id="voiceStatusText">🎤 Listening for voice commands (e.g. "ป 1 75")...</span>
         </div>
     </div>
 
@@ -336,6 +340,7 @@
         let hasPrinted = false; 
         let companyTimer = null;
         let voiceSubmissionTimer = null;
+        let toastTimeout = null;
         let recognition = null;
         let lastProcessedSpeech = "";
         let lastSubmissionTime = 0;
@@ -375,7 +380,25 @@
             forceVisualFocus('companyInput');
         });
 
+        /*
+        // Disabled toast balloon as requested
+        function showToast(message, icon = '⚠️') {}
+        */
+
         function promptClearAllData() {
+            const hasCompany = document.getElementById('companyInput').value.trim() !== '';
+            const hasTableA = tableAData.length > 0;
+            const hasTableB = document.getElementById('table-b-container').innerHTML.includes('<tr>');
+
+            if (!hasTableA && !hasCompany && !hasTableB) {
+                return;
+            }
+
+            const noticeEl = document.getElementById('deleteModalNotice');
+            if (noticeEl) {
+                noticeEl.innerText = "รายการบันทึกและตารางคำนวณทั้งหมดจะถูกลบออกจากระบบ";
+            }
+
             const modal = document.getElementById('deleteModal');
             if (modal) modal.classList.remove('hidden');
         }
@@ -386,11 +409,12 @@
         }
 
         function confirmDeleteAll() {
-            // Completely wipe out all data, storage, and Section C output
+            // Completely clear all data arrays and local storage
             tableAData = [];
             localStorage.removeItem('bill_system_datalog');
             localStorage.removeItem('bill_system_company');
 
+            // Reset input values and company title
             document.getElementById('companyInput').value = "";
             document.getElementById('classInput').value = "";
             document.getElementById('amountInput').value = "";
@@ -398,6 +422,7 @@
 
             hasPrinted = false;
 
+            // Re-render UI: both Table A and Section C (Table B) are completely cleared
             updateSystem();
             closeDeleteModal();
             forceVisualFocus('companyInput');
@@ -418,7 +443,7 @@
             recognition.onstart = () => {
                 const badge = document.getElementById('voiceStatusBadge');
                 if (badge) badge.classList.remove('hidden');
-                updateVoiceStatusText('🎤 กำลังฟังเสียง... (พูด เช่น "อ 1 30", "ป 1 75", "ม 1 50")');
+                updateVoiceStatusText('🎤 กำลังฟังเสียง... (พูด เช่น "ป 1 75")');
             };
 
             recognition.onend = () => {
@@ -487,22 +512,8 @@
         function processSpokenText(text) {
             if (text === lastProcessedSpeech) return;
             
-            let rawText = text.trim();
-            let cleaned = convertThaiWordsAndDigits(rawText);
-
-            // Determine level prefix: 'อ' (อนุบาล), 'ม' (มัธยม), or 'ป' (ประถม - default)
-            let levelPrefix = "ป"; // default level
-
-            if (/อนุบาล|อ\b|อ\s|อ\d|อ\./i.test(rawText) || /อนุบาล/i.test(cleaned)) {
-                levelPrefix = "อ";
-            } else if (/มัธยม|ม\b|ม\s|ม\d|ม\./i.test(rawText) || /มัธยม/i.test(cleaned)) {
-                levelPrefix = "ม";
-            } else if (/ประถม|ป\b|ป\s|ป\d|ป\./i.test(rawText) || /ประถม/i.test(cleaned)) {
-                levelPrefix = "ป";
-            }
-
-            // Strip level words, keywords, and extra dots
-            cleaned = cleaned.replace(/อนุบาล|ประถม|มัธยม|ชั้น|\./g, ' ').replace(/\s+/g, ' ').trim();
+            let cleaned = convertThaiWordsAndDigits(text);
+            cleaned = cleaned.replace(/ประถม|ชั้น|\./g, ' ').replace(/\s+/g, ' ').trim();
 
             if (cleaned.startsWith('โรงเรียน') || cleaned.startsWith('บริษัท')) {
                 lastProcessedSpeech = text;
@@ -518,7 +529,7 @@
                 lastProcessedSpeech = text;
                 clearTimeout(voiceSubmissionTimer);
 
-                const classVal = levelPrefix + " " + numbers[0];
+                const classVal = "ป " + numbers[0];
                 const amountVal = numbers[1];
 
                 const classInput = document.getElementById('classInput');
@@ -535,7 +546,7 @@
                 voiceSubmissionTimer = setTimeout(() => {
                     addDataRow();
                     if (isVoiceModeActive) {
-                        updateVoiceStatusText('🎤 กำลังฟังเสียง... (พูด เช่น "อ 1 30", "ป 1 75", "ม 1 50")');
+                        updateVoiceStatusText('🎤 กำลังฟังเสียง... (พูด เช่น "ป 1 75")');
                     }
                 }, 1000);
             }
@@ -572,7 +583,7 @@
                     try {
                         recognition.start();
                     } catch(e) {
-                        console.log("Mic already active...");
+                        console.log("Mic already active or re-starting...");
                     }
                 }
 
@@ -603,7 +614,7 @@
             } else {
                 btn.innerText = "⌨️";
                 btn.className = "btn-icon-mode mode-manual-active";
-                btn.title = "Current Mode: Manual. Click to switch to Voice Mode.";
+                btn.title = "Current Mode: Manual (Enter / Key Navigation). Click to switch to Voice Mode.";
                 if (badge) badge.classList.add('hidden');
             }
         }
@@ -686,7 +697,7 @@
             if (now - lastSubmissionTime < 2500) {
                 const lastItem = tableAData[tableAData.length - 1];
                 if (lastItem && lastItem.classId === classVal && lastItem.amount === amountVal) {
-                    console.log("Duplicate submission ignored");
+                    console.log("Duplicate speech submission ignored");
                     return;
                 }
             }
@@ -704,45 +715,20 @@
             updateSystem();
         }
 
-        /* Direct & Flexible Inline Editing for Table A cells */
         function editRowInline(index, field, newValue) {
-            if (index < 0 || index >= tableAData.length) return;
-
             if (field === 'classId') {
-                const val = newValue.trim();
-                // Direct free-text update without restrictive auto-formatting
-                if (val !== "") {
-                    tableAData[index].classId = val;
-                }
+                let val = newValue.trim();
+                let matches = val.match(/\d+$/);
+                if (matches && (val.includes("ปอ") || val.length > matches[0].length)) {
+                    val = "ป " + matches[0];
+                }                
+                tableAData[index].classId = val || tableAData[index].classId;
             } else if (field === 'amount') {
-                const parsedAmount = parseInt(newValue, 10);
-                if (!isNaN(parsedAmount) && parsedAmount > 0) {
-                    tableAData[index].amount = parsedAmount;
-                }
+                const parsedAmount = parseInt(newValue, 10) || 0;
+                tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
             }
             localStorage.setItem('bill_system_datalog', JSON.stringify(tableAData));
             updateSystem(); 
-        }
-
-        /* Keyboard handler for direct table editing navigation */
-        function handleTableAKey(event, index, field) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                event.target.blur(); // Triggers onchange to save instantly
-                if (field === 'classId') {
-                    // Shift focus to the amount input in the same row
-                    const amountEl = document.getElementById(`amt-input-${index}`);
-                    if (amountEl) amountEl.focus();
-                } else if (field === 'amount') {
-                    // Shift focus to the next row's class input if available
-                    const nextClassEl = document.getElementById(`class-input-${index + 1}`);
-                    if (nextClassEl) {
-                        nextClassEl.focus();
-                    } else {
-                        forceVisualFocus('classInput');
-                    }
-                }
-            }
         }
 
         function removeDataRow(index) {
@@ -752,7 +738,7 @@
         }
 
         function printTableB() { 
-            hasPrinted = true;
+            hasPrinted = true; // Mark as printed so Delete All preserves Section C
             const printContent = document.getElementById('printableTableBSection');
             if (!printContent) return;
 
@@ -766,7 +752,7 @@
                     window.print();
                 }
             } catch (err) {
-                console.warn("Direct window.print restriction, opening preview modal:", err);
+                console.warn("Direct window.print encountered restriction, launching print preview modal:", err);
                 openPrintModal();
             }
         }
@@ -848,26 +834,8 @@
             } else {
                 tableAData.forEach((item, index) => {
                     html += `<tr>
-                        <td>
-                            <input type="text" 
-                                   id="class-input-${index}" 
-                                   class="editable-input" 
-                                   value="${item.classId}" 
-                                   onfocus="this.select()" 
-                                   onchange="editRowInline(${index}, 'classId', this.value)" 
-                                   onkeydown="handleTableAKey(event, ${index}, 'classId')"
-                                   title="Click to edit class name directly">
-                        </td>
-                        <td>
-                            <input type="text" 
-                                   id="amt-input-${index}" 
-                                   class="editable-input" 
-                                   value="${item.amount}" 
-                                   onfocus="this.select()" 
-                                   onchange="editRowInline(${index}, 'amount', this.value)" 
-                                   onkeydown="handleTableAKey(event, ${index}, 'amount')"
-                                   title="Click to edit student count directly">
-                        </td>
+                        <td><input type="text" class="editable-input" value="${item.classId}" onchange="editRowInline(${index}, 'classId', this.value)"></td>
+                        <td><input type="text" class="editable-input" value="${item.amount}" onchange="editRowInline(${index}, 'amount', this.value)"></td>
                         <td><button type="button" class="btn btn-danger btn-sm" onclick="removeDataRow(${index})">ลบ</button></td>
                     </tr>`;
                 });
