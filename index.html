@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Cash Bill Book Entry System - work03</title>
+    <title>Dynamic Cash Bill Book Entry System - work01 Enhanced</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -77,7 +77,7 @@
             outline: none;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
-
+        
         .button-group { 
             display: flex; 
             gap: 8px; 
@@ -189,6 +189,7 @@
             color: #0f172a;
         }
         
+        /* Enhanced Direct Inline Input Cell Styling */
         .editable-input { 
             width: 95%; 
             padding: 6px 8px; 
@@ -225,6 +226,7 @@
             background-color: white; box-shadow: 0 4px 0 white, 0 8px 0 white;
         }
 
+        /* Print styles */
         @page { size: auto; margin: 15mm; }
         @media print {
             body { background: #fff !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
@@ -244,6 +246,7 @@
 </head>
 <body>
 
+    <!-- Custom Confirmation Modal for Delete All -->
     <div id="deleteModal" class="no-print hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 text-center space-y-4">
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">🗑️</div>
@@ -256,6 +259,7 @@
         </div>
     </div>
 
+    <!-- Canvas Print Preview Modal (Fallback if iframe blocks print) -->
     <div id="printPreviewModal" class="no-print hidden fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             <div class="p-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
@@ -266,14 +270,14 @@
                 </div>
             </div>
             <div id="printModalBody" class="p-6 overflow-y-auto flex-1 bg-white">
-                <!-- Cloned content for printing -->
+                <!-- Cloned content will be placed here for printing -->
             </div>
         </div>
     </div>
 
     <div class="max-w-4xl mx-auto mb-6 text-center no-print">
         <h2 class="text-2xl font-bold text-slate-800">Cash Bill Book Entry System</h2>
-        <p class="text-xs text-slate-500 mt-1">Reference Base: work03 (Voice Stream & Direct Cell Editing)</p>
+        <p class="text-xs text-slate-500 mt-1">Reference Base: work01 (Voice Stream & Direct Cell Editing)</p>
         <div id="voiceStatusBadge" class="hidden mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
             <span class="w-2.5 h-2.5 rounded-full bg-purple-600 animate-ping"></span>
             <span id="voiceStatusText">🎤 Listening for voice commands (e.g. "อ 1 30", "ป 1 75", "ม 1 50")...</span>
@@ -282,7 +286,7 @@
 
     <div class="dashboard-container">
         
-        <!-- Left Column: Section A (Inputs) and Section B (Log Table A) -->
+        <!-- Left Column: Inputs and Log Table -->
         <div class="left-column no-print">
             <div class="control-panel">
                 <div class="form-group">
@@ -302,6 +306,7 @@
                     <button type="button" class="btn btn-primary" onclick="addDataRow()">Add Data</button>
                     <button type="button" class="btn btn-danger" onclick="promptClearAllData()">Delete All</button>
                     <button type="button" class="btn btn-success" onclick="printTableB()">Print Out</button>
+                    <!-- Mode toggle button defaults to Manual Mode (Keyboard Icon) -->
                     <button id="modeToggleButton" type="button" class="btn-icon-mode mode-manual-active" onclick="toggleInputMode()" title="Current Mode: Manual (Click to switch to Voice Mode)">⌨️</button>
                 </div>
             </div>
@@ -309,6 +314,7 @@
             <div id="table-a-container" class="table-section"></div>
         </div>
 
+        <!-- Right Column: Printable Output Table B (Section C) -->
         <div class="right-column table-section" id="printableTableBSection">
             <div class="logo-wrapper">
                 <div class="business-logo">
@@ -341,9 +347,9 @@
 
             if (savedCompany && savedCompany.trim() !== "") {
                 document.getElementById('companyInput').value = savedCompany;
-                document.getElementById('tableBTitle').innerText = formatSchoolNameForDisplay(savedCompany);
+                document.getElementById('tableBTitle').innerText = savedCompany;
             } else {
-                document.getElementById('tableBTitle').innerText = formatSchoolNameForDisplay(DEFAULT_COMPANY);
+                document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
             }
 
             if (savedDataLog) {
@@ -380,6 +386,7 @@
         }
 
         function confirmDeleteAll() {
+            // Completely wipe out all data, storage, and Section C output
             tableAData = [];
             localStorage.removeItem('bill_system_datalog');
             localStorage.removeItem('bill_system_company');
@@ -387,7 +394,7 @@
             document.getElementById('companyInput').value = "";
             document.getElementById('classInput').value = "";
             document.getElementById('amountInput').value = "";
-            document.getElementById('tableBTitle').innerText = formatSchoolNameForDisplay(DEFAULT_COMPANY);
+            document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
 
             hasPrinted = false;
 
@@ -483,7 +490,8 @@
             let rawText = text.trim();
             let cleaned = convertThaiWordsAndDigits(rawText);
 
-            let levelPrefix = "ป";
+            // Determine level prefix: 'อ' (อนุบาล), 'ม' (มัธยม), or 'ป' (ประถม - default)
+            let levelPrefix = "ป"; // default level
 
             if (/อนุบาล|อ\b|อ\s|อ\d|อ\./i.test(rawText) || /อนุบาล/i.test(cleaned)) {
                 levelPrefix = "อ";
@@ -493,6 +501,7 @@
                 levelPrefix = "ป";
             }
 
+            // Strip level words, keywords, and extra dots
             cleaned = cleaned.replace(/อนุบาล|ประถม|มัธยม|ชั้น|\./g, ' ').replace(/\s+/g, ' ').trim();
 
             if (cleaned.startsWith('โรงเรียน') || cleaned.startsWith('บริษัท')) {
@@ -568,7 +577,7 @@
                 }
 
                 const currentComp = document.getElementById('companyInput').value.trim();
-                if (currentComp === "" || currentComp === DEFAULT_COMPANY || currentComp === "โรงเรียน") {
+                if (currentComp === "" || currentComp === DEFAULT_COMPANY) {
                     forceVisualFocus('companyInput');
                 } else {
                     forceVisualFocus('classInput');
@@ -632,18 +641,10 @@
             });
         }
 
-        function formatSchoolNameForDisplay(name) {
-            if (!name) return DEFAULT_COMPANY;
-            let trimmed = name.trim();
-            if (trimmed === "" || trimmed === "โรงเรียน") return DEFAULT_COMPANY;
-            let cleaned = trimmed.replace(/^โรงเรียน\s*/, '');
-            return cleaned === "" ? DEFAULT_COMPANY : cleaned;
-        }
-
         function updateCompanyName(input) {
-            const val = input ? input.value.trim() : document.getElementById('companyInput').value.trim();
+            const val = input.value.trim();
             const titleSpan = document.getElementById('tableBTitle');
-            titleSpan.innerText = formatSchoolNameForDisplay(val);
+            titleSpan.innerText = val === "" ? DEFAULT_COMPANY : val;
             localStorage.setItem('bill_system_company', val);
         }
 
@@ -703,11 +704,13 @@
             updateSystem();
         }
 
+        /* Direct & Flexible Inline Editing for Table A cells */
         function editRowInline(index, field, newValue) {
             if (index < 0 || index >= tableAData.length) return;
 
             if (field === 'classId') {
                 const val = newValue.trim();
+                // Direct free-text update without restrictive auto-formatting
                 if (val !== "") {
                     tableAData[index].classId = val;
                 }
@@ -721,14 +724,17 @@
             updateSystem(); 
         }
 
+        /* Keyboard handler for direct table editing navigation */
         function handleTableAKey(event, index, field) {
             if (event.key === "Enter") {
                 event.preventDefault();
-                event.target.blur();
+                event.target.blur(); // Triggers onchange to save instantly
                 if (field === 'classId') {
+                    // Shift focus to the amount input in the same row
                     const amountEl = document.getElementById(`amt-input-${index}`);
                     if (amountEl) amountEl.focus();
                 } else if (field === 'amount') {
+                    // Shift focus to the next row's class input if available
                     const nextClassEl = document.getElementById(`class-input-${index + 1}`);
                     if (nextClassEl) {
                         nextClassEl.focus();
@@ -747,15 +753,6 @@
 
         function printTableB() { 
             hasPrinted = true;
-
-            // Before placing a print order, check if companyInput is "โรงเรียน" or empty
-            const currentCompany = document.getElementById('companyInput').value.trim();
-            if (currentCompany === "" || currentCompany === "โรงเรียน") {
-                document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
-            } else {
-                document.getElementById('tableBTitle').innerText = formatSchoolNameForDisplay(currentCompany);
-            }
-
             const printContent = document.getElementById('printableTableBSection');
             if (!printContent) return;
 
