@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System</title>
+    <title>Dynamic Cash Bill Book Entry System - imp00</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         
@@ -88,6 +88,30 @@
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
 
+        /* LIVE TRANSCRIPT BADGE BAR */
+        .voice-status-bar {
+            margin-top: 12px;
+            padding: 8px 12px;
+            background-color: #eef4ff;
+            border: 1px dashed #70a1ff;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 20px;
+        }
+        .voice-badge {
+            font-weight: bold;
+            padding: 2px 6px;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 3px;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
         /* Tables Formatting */
         .table-section h3 { margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #444; }
         .company-header-output { color: #dc3545; font-weight: bold; }
@@ -141,7 +165,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System</h2>
+    <h2>Cash Bill Book Entry System (imp00)</h2>
 
     <div class="dashboard-container">
         
@@ -166,6 +190,12 @@
                     <button class="btn btn-success" onclick="printTableB()">Print Out</button>
                     <button id="modeToggleButton" class="btn-icon-mode mode-manual-active" onclick="toggleInputMode()" title="Toggle Entry Mode">⌨️</button>
                 </div>
+
+                <!-- LIVE SPEECH TRANSCRIPT DISPLAY -->
+                <div class="voice-status-bar" id="voiceStatusBar">
+                    <span class="voice-badge">Voice Log</span>
+                    <span id="voiceTranscriptText" style="font-style: italic; color: #666;">Manual mode active (Microphone Off)</span>
+                </div>
             </div>
 
             <div id="table-a-container" class="table-section"></div>
@@ -188,14 +218,14 @@
         let tableAData = [];
         const DEFAULT_COMPANY = "N&T Trading";
         
-        let isVoiceModeActive = false; // Default set to Manual / Typing mode
+        let isVoiceModeActive = false; // Default: Manual Typing Mode
         let recognition = null;
         let isUserIntentionalStop = false;
+        let voiceSubmissionTimer = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             const savedCompany = localStorage.getItem('bill_system_company');
             const savedDataLog = localStorage.getItem('bill_system_datalog');
-            const savedMode = localStorage.getItem('bill_system_mode');
 
             if (savedCompany && savedCompany.trim() !== "") {
                 document.getElementById('companyInput').value = savedCompany;
@@ -208,11 +238,8 @@
                 tableAData = JSON.parse(savedDataLog);
             }
 
-            if (savedMode !== null) {
-                isVoiceModeActive = (savedMode === 'voice');
-            } else {
-                isVoiceModeActive = false; // Force default to false/manual on standard launch
-            }
+            // Always enforce Manual mode on cold launch
+            isVoiceModeActive = false;
 
             initWebSpeechAPI();
             applyModeButtonUI();
@@ -220,40 +247,78 @@
             updateSystem();
             initPersistentFocusTracking();
 
-            // Default focus on Company Name on initial launch
+            // Default focus on Company Name on launch
             forceVisualFocus('companyInput');
-
-            if (isVoiceModeActive) {
-                startSpeechRecognition();
-            }
         });
+
+        /* --- THAI SPEECH NORMALIZATION ENGINE --- */
+        function normalizeThaiSpeech(text) {
+            let processed = text;
+
+            // 1. Convert Thai numerals (๐-๙) to Arabic digits (0-9)
+            const thaiDigits = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
+            for (let i = 0; i < 10; i++) {
+                processed = processed.replace(new RegExp(thaiDigits[i], 'g'), i);
+            }
+
+            // 2. Replace spoken Thai prefix keywords
+            processed = processed.replace(/ประถมศึกษาปีที่/g, "ป ");
+            processed = processed.replace(/ประถมศึกษา/g, "ป ");
+            processed = processed.replace(/ประถม/g, "ป ");
+            processed = processed.replace(/ชั้น\s*ป/g, "ป ");
+            processed = processed.replace(/ป\./g, "ป ");
+
+            // 3. Convert spoken word numbers to digits
+            const wordMap = {
+                "ศูนย์": 0, "หนึ่ง": 1, "สอง": 2, "สาม": 3, "สี่": 4, "ห้า": 5,
+                "หก": 6, "เจ็ด": 7, "แปด": 8, "เก้า": 9, "สิบ": 10,
+                "ยี่สิบ": 20, "สามสิบ": 30, "สี่สิบ": 40, "ห้าสิบ": 50,
+                "หกสิบ": 60, "เจ็ดสิบ": 70, "แปดสิบ": 80, "เก้าสิบ": 90,
+                "ร้อย": 100
+            };
+
+            for (let word in wordMap) {
+                processed = processed.replace(new RegExp(word, 'g'), wordMap[word] + " ");
+            }
+
+            return processed.trim();
+        }
 
         /* --- WEB SPEECH API INTEGRATION --- */
         function initWebSpeechAPI() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
                 console.warn("Web Speech API is not supported in this browser.");
+                document.getElementById('voiceTranscriptText').innerText = "Web Speech API not supported on this browser.";
                 return;
             }
 
             recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = false;
-            recognition.lang = 'th-TH'; // Set recognition target to Thai language
+            recognition.lang = 'th-TH'; // Thai Speech Recognition
 
             recognition.onresult = (event) => {
                 const lastIndex = event.results.length - 1;
-                const transcript = event.results[lastIndex][0].transcript.trim();
-                console.log("Spoken transcript:", transcript);
-                processVoiceTranscript(transcript);
+                const rawTranscript = event.results[lastIndex][0].transcript.trim();
+                
+                // Show raw transcript in the status badge bar
+                document.getElementById('voiceTranscriptText').innerText = `"${rawTranscript}"`;
+                
+                const normalizedText = normalizeThaiSpeech(rawTranscript);
+                console.log("Raw:", rawTranscript, "-> Normalized:", normalizedText);
+                
+                processVoiceTranscript(normalizedText);
             };
 
             recognition.onerror = (event) => {
                 console.error("Speech Recognition Error:", event.error);
+                if (event.error !== 'no-speech') {
+                    document.getElementById('voiceTranscriptText').innerText = `Mic status: ${event.error}`;
+                }
             };
 
             recognition.onend = () => {
-                // Auto-restart if voice mode is still active (prevents timeout dropouts)
                 if (isVoiceModeActive && !isUserIntentionalStop) {
                     try { recognition.start(); } catch(e) {}
                 }
@@ -262,14 +327,15 @@
 
         function startSpeechRecognition() {
             if (!recognition) {
-                alert("Browser Speech Recognition is not supported on this browser. Please use Google Chrome or MS Edge.");
+                alert("Browser Speech Recognition is not supported. Please use Google Chrome or MS Edge.");
                 return;
             }
             isUserIntentionalStop = false;
             try {
                 recognition.start();
+                document.getElementById('voiceTranscriptText').innerText = "Listening... Speak in Thai...";
             } catch (e) {
-                console.log("Speech recognition is already running.");
+                console.log("Speech recognition is already active.");
             }
         }
 
@@ -277,20 +343,40 @@
             if (recognition) {
                 isUserIntentionalStop = true;
                 recognition.stop();
+                document.getElementById('voiceTranscriptText').innerText = "Manual mode active (Microphone Off)";
             }
         }
 
         function processVoiceTranscript(text) {
+            const activeEl = document.activeElement;
+
+            // 1. Contextual Routing: Company Name focused
+            if (activeEl && activeEl.id === 'companyInput') {
+                const companyInput = document.getElementById('companyInput');
+                companyInput.value = text;
+                updateCompanyName(companyInput);
+                console.log(`🎯 Voice parsed Company Name: ${text}`);
+                return;
+            }
+
+            // 2. Class & Amount Voice Parsing
             let numbersFound = text.match(/\d+/g);
             if (numbersFound && numbersFound.length >= 2) {
+                clearTimeout(voiceSubmissionTimer);
+
                 let classNum = numbersFound[0];
                 let amountNum = numbersFound[1];
 
+                // Render into input boxes immediately for visual feedback
                 document.getElementById('classInput').value = "ป " + classNum;
                 document.getElementById('amountInput').value = amountNum;
 
                 console.log(`🎯 Voice parsed: Class ป ${classNum}, Amount ${amountNum}`);
-                addDataRow();
+                
+                // 600ms buffer delay so user can see inputs before auto-submit
+                voiceSubmissionTimer = setTimeout(() => {
+                    addDataRow();
+                }, 600);
             }
         }
 
@@ -317,7 +403,6 @@
 
         function toggleInputMode() {
             isVoiceModeActive = !isVoiceModeActive;
-            localStorage.setItem('bill_system_mode', isVoiceModeActive ? 'voice' : 'manual');
             
             if (isVoiceModeActive) {
                 startSpeechRecognition();
@@ -373,6 +458,7 @@
         function handleAmountKeyDown(event) {
             if (event.key === "Enter" || (event.ctrlKey && event.key === "ArrowDown")) {
                 event.preventDefault();
+                clearTimeout(voiceSubmissionTimer);
                 addDataRow();
             }
         }
