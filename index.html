@@ -2,18 +2,15 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp00</title>
+    <title>Dynamic Cash Bill Book Entry System - imp02</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-        
         h2 { margin-bottom: 20px; font-size: 26px; }
 
-        /* Two-Column Layout from the very top */
         .dashboard-container { display: flex; gap: 50px; align-items: flex-start; }
         .left-column { flex: 1; max-width: 415px; } 
         .right-column { flex: 1; max-width: 500px; }
 
-        /* Unified Control Panel Layout */
         .control-panel { 
             background-color: #f9f9f9; 
             padding: 20px; 
@@ -37,7 +34,6 @@
             transition: all 0.2s ease;
         }
         
-        /* Persistent highlight class when box is active */
         .form-group input.active-focus {
             border-color: #007bff;
             background-color: #f0f7ff; 
@@ -45,10 +41,8 @@
             box-shadow: 0 0 4px rgba(0, 123, 255, 0.15);
         }
         
-        /* ONE-LINE BUTTON ROW PACKING */
         .button-group { display: flex; gap: 6px; margin-top: 18px; justify-content: flex-start; align-items: center; }
         
-        /* Buttons */
         .btn { padding: 9px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; height: 35px; box-sizing: border-box; }
         .btn-primary { background-color: #007bff; color: white; }
         .btn-primary:hover { background-color: #0056b3; }
@@ -69,12 +63,10 @@
             align-items: center; 
             justify-content: center;
             box-sizing: border-box;
-            position: relative;
         }
         .mode-manual-active { background-color: #6c757d; color: white; }
         .mode-manual-active:hover { background-color: #5a6268; }
         
-        /* Active Pulsing Animation for Voice Mode */
         .mode-voice-active { 
             background-color: #dc3545; 
             color: white; 
@@ -88,7 +80,6 @@
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
 
-        /* LIVE TRANSCRIPT BADGE BAR */
         .voice-status-bar {
             margin-top: 12px;
             padding: 8px 12px;
@@ -112,7 +103,6 @@
             text-transform: uppercase;
         }
 
-        /* Tables Formatting */
         .table-section h3 { margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #444; }
         .company-header-output { color: #dc3545; font-weight: bold; }
 
@@ -138,7 +128,6 @@
             border-radius: 3px; 
         }
 
-        /* --- LOGO DESIGN STYLES --- */
         .logo-wrapper { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
         .business-logo {
             width: 42px; height: 42px; background-color: #dc3545; border-radius: 8px;
@@ -150,7 +139,6 @@
             background-color: white; box-shadow: 0 4px 0 white, 0 8px 0 white;
         }
 
-        /* --- STABILIZED PRINT FIXES --- */
         @page { size: auto; margin: 15mm; }
         @media print {
             html, body { background: #fff; margin: 0 !important; padding: 0 !important; width: 100%; }
@@ -160,12 +148,13 @@
             .button-group, .control-panel { display: none !important; }
             #printableTableBSection { position: absolute; left: 0; top: 0; width: 100% !important; max-width: 100% !important; }
             .business-logo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .editable-input { border: none !important; background: transparent !important; }
         }
     </style>
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp00)</h2>
+    <h2>Cash Bill Book Entry System (imp02)</h2>
 
     <div class="dashboard-container">
         
@@ -177,7 +166,7 @@
                 </div>
                 <div class="form-group">
                     <label for="classInput">Class:</label>
-                    <input type="text" id="classInput" placeholder="e.g., ป 1 75" onkeydown="handleClassKeyDown(event)">
+                    <input type="text" id="classInput" placeholder="e.g., อ 1, ป 2, ม 1" onkeydown="handleClassKeyDown(event)">
                 </div>
                 <div class="form-group">
                     <label for="amountInput">Amount:</label>
@@ -191,7 +180,6 @@
                     <button id="modeToggleButton" class="btn-icon-mode mode-manual-active" onclick="toggleInputMode()" title="Toggle Entry Mode">⌨️</button>
                 </div>
 
-                <!-- LIVE SPEECH TRANSCRIPT DISPLAY -->
                 <div class="voice-status-bar" id="voiceStatusBar">
                     <span class="voice-badge">Voice Log</span>
                     <span id="voiceTranscriptText" style="font-style: italic; color: #666;">Manual mode active (Microphone Off)</span>
@@ -218,7 +206,7 @@
         let tableAData = [];
         const DEFAULT_COMPANY = "N&T Trading";
         
-        let isVoiceModeActive = false; // Default: Manual Typing Mode
+        let isVoiceModeActive = false;
         let recognition = null;
         let isUserIntentionalStop = false;
         let voiceSubmissionTimer = null;
@@ -238,7 +226,6 @@
                 tableAData = JSON.parse(savedDataLog);
             }
 
-            // Always enforce Manual mode on cold launch
             isVoiceModeActive = false;
 
             initWebSpeechAPI();
@@ -247,28 +234,34 @@
             updateSystem();
             initPersistentFocusTracking();
 
-            // Default focus on Company Name on launch
             forceVisualFocus('companyInput');
         });
 
-        /* --- THAI SPEECH NORMALIZATION ENGINE --- */
+        /* --- THAI SPEECH NORMALIZATION --- */
         function normalizeThaiSpeech(text) {
             let processed = text;
 
-            // 1. Convert Thai numerals (๐-๙) to Arabic digits (0-9)
             const thaiDigits = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
             for (let i = 0; i < 10; i++) {
                 processed = processed.replace(new RegExp(thaiDigits[i], 'g'), i);
             }
 
-            // 2. Replace spoken Thai prefix keywords
+            processed = processed.replace(/อนุบาล/g, "อ ");
+            processed = processed.replace(/อ\./g, "อ ");
+            processed = processed.replace(/ชั้น\s*อ/g, "อ ");
+
             processed = processed.replace(/ประถมศึกษาปีที่/g, "ป ");
             processed = processed.replace(/ประถมศึกษา/g, "ป ");
             processed = processed.replace(/ประถม/g, "ป ");
-            processed = processed.replace(/ชั้น\s*ป/g, "ป ");
             processed = processed.replace(/ป\./g, "ป ");
+            processed = processed.replace(/ชั้น\s*ป/g, "ป ");
 
-            // 3. Convert spoken word numbers to digits
+            processed = processed.replace(/มัธยมศึกษาปีที่/g, "ม ");
+            processed = processed.replace(/มัธยมศึกษา/g, "ม ");
+            processed = processed.replace(/มัธยม/g, "ม ");
+            processed = processed.replace(/ม\./g, "ม ");
+            processed = processed.replace(/ชั้น\s*ม/g, "ม ");
+
             const wordMap = {
                 "ศูนย์": 0, "หนึ่ง": 1, "สอง": 2, "สาม": 3, "สี่": 4, "ห้า": 5,
                 "หก": 6, "เจ็ด": 7, "แปด": 8, "เก้า": 9, "สิบ": 10,
@@ -288,7 +281,6 @@
         function initWebSpeechAPI() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
-                console.warn("Web Speech API is not supported in this browser.");
                 document.getElementById('voiceTranscriptText').innerText = "Web Speech API not supported on this browser.";
                 return;
             }
@@ -296,23 +288,21 @@
             recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = false;
-            recognition.lang = 'th-TH'; // Thai Speech Recognition
+            recognition.lang = 'th-TH';
 
             recognition.onresult = (event) => {
                 const lastIndex = event.results.length - 1;
                 const rawTranscript = event.results[lastIndex][0].transcript.trim();
                 
-                // Show raw transcript in the status badge bar
                 document.getElementById('voiceTranscriptText').innerText = `"${rawTranscript}"`;
                 
                 const normalizedText = normalizeThaiSpeech(rawTranscript);
                 console.log("Raw:", rawTranscript, "-> Normalized:", normalizedText);
                 
-                processVoiceTranscript(normalizedText);
+                processVoiceTranscript(normalizedText, rawTranscript);
             };
 
             recognition.onerror = (event) => {
-                console.error("Speech Recognition Error:", event.error);
                 if (event.error !== 'no-speech') {
                     document.getElementById('voiceTranscriptText').innerText = `Mic status: ${event.error}`;
                 }
@@ -326,17 +316,12 @@
         }
 
         function startSpeechRecognition() {
-            if (!recognition) {
-                alert("Browser Speech Recognition is not supported. Please use Google Chrome or MS Edge.");
-                return;
-            }
+            if (!recognition) return;
             isUserIntentionalStop = false;
             try {
                 recognition.start();
-                document.getElementById('voiceTranscriptText').innerText = "Listening... Speak in Thai...";
-            } catch (e) {
-                console.log("Speech recognition is already active.");
-            }
+                document.getElementById('voiceTranscriptText').innerText = "Listening... Speak in Thai (e.g. อ 1 30, ป 2 50, ม 1 100)...";
+            } catch (e) {}
         }
 
         function stopSpeechRecognition() {
@@ -347,46 +332,48 @@
             }
         }
 
-        function processVoiceTranscript(text) {
+        function processVoiceTranscript(normalizedText, rawText) {
             const activeEl = document.activeElement;
 
-            // 1. Contextual Routing: Company Name focused
             if (activeEl && activeEl.id === 'companyInput') {
                 const companyInput = document.getElementById('companyInput');
-                companyInput.value = text;
+                companyInput.value = normalizedText;
                 updateCompanyName(companyInput);
-                console.log(`🎯 Voice parsed Company Name: ${text}`);
                 return;
             }
 
-            // 2. Class & Amount Voice Parsing
-            let numbersFound = text.match(/\d+/g);
+            let numbersFound = normalizedText.match(/\d+/g);
             if (numbersFound && numbersFound.length >= 2) {
                 clearTimeout(voiceSubmissionTimer);
 
                 let classNum = numbersFound[0];
                 let amountNum = numbersFound[1];
 
-                // Render into input boxes immediately for visual feedback
-                document.getElementById('classInput').value = "ป " + classNum;
+                let prefix = "ป";
+                if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
+                    prefix = "อ";
+                } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
+                    prefix = "ม";
+                } else if (normalizedText.includes("ป") || rawText.includes("ประถม")) {
+                    prefix = "ป";
+                }
+
+                document.getElementById('classInput').value = `${prefix} ${classNum}`;
                 document.getElementById('amountInput').value = amountNum;
 
-                console.log(`🎯 Voice parsed: Class ป ${classNum}, Amount ${amountNum}`);
+                console.log(`🎯 Voice parsed: Class ${prefix} ${classNum}, Amount ${amountNum}`);
                 
-                // 600ms buffer delay so user can see inputs before auto-submit
                 voiceSubmissionTimer = setTimeout(() => {
                     addDataRow();
                 }, 600);
             }
         }
 
-        /* --- UI & MODE SWITCHING --- */
+        /* --- UI & FOCUS TRACKING --- */
         function initPersistentFocusTracking() {
             document.body.addEventListener('focusin', (e) => {
                 if (e.target.tagName === 'INPUT') {
-                    document.querySelectorAll('input').forEach(input => {
-                        input.classList.remove('active-focus');
-                    });
+                    document.querySelectorAll('input').forEach(input => input.classList.remove('active-focus'));
                     e.target.classList.add('active-focus');
                 }
             });
@@ -403,20 +390,14 @@
 
         function toggleInputMode() {
             isVoiceModeActive = !isVoiceModeActive;
-            
             if (isVoiceModeActive) {
                 startSpeechRecognition();
                 const currentComp = document.getElementById('companyInput').value.trim();
-                if (currentComp === "" || currentComp === DEFAULT_COMPANY) {
-                    forceVisualFocus('companyInput');
-                } else {
-                    forceVisualFocus('classInput');
-                }
+                forceVisualFocus(currentComp === "" || currentComp === DEFAULT_COMPANY ? 'companyInput' : 'classInput');
             } else {
                 stopSpeechRecognition();
                 forceVisualFocus('classInput');
             }
-
             applyModeButtonUI();
         }
 
@@ -425,11 +406,11 @@
             if (isVoiceModeActive) {
                 btn.innerText = "🎙️";
                 btn.className = "btn-icon-mode mode-voice-active";
-                btn.title = "Current Mode: Voice Listening Active (Click to switch to Manual Typing)";
+                btn.title = "Current Mode: Voice Listening Active";
             } else {
                 btn.innerText = "⌨️";
                 btn.className = "btn-icon-mode mode-manual-active";
-                btn.title = "Current Mode: Manual Typing (Click to switch to Voice Mode)";
+                btn.title = "Current Mode: Manual Typing";
             }
         }
 
@@ -440,18 +421,15 @@
             localStorage.setItem('bill_system_company', val);
         }
 
-        /* --- MANUAL KEY CONTROLS --- */
         function handleCompanyKeyDown(event) {
             if (event.key === "Enter" || (event.ctrlKey && event.key === "ArrowDown")) {
-                event.preventDefault();
-                forceVisualFocus('classInput');
+                event.preventDefault(); forceVisualFocus('classInput');
             }
         }
 
         function handleClassKeyDown(event) {
             if (event.key === "Enter" || (event.ctrlKey && event.key === "ArrowDown")) {
-                event.preventDefault();
-                forceVisualFocus('amountInput');
+                event.preventDefault(); forceVisualFocus('amountInput');
             }
         }
 
@@ -471,7 +449,7 @@
             const amountVal = parseInt(amountInput.value);
 
             if (!classVal || isNaN(amountVal) || amountVal <= 0) {
-                alert("กรุณากรอก ชั้น ป. และ จำนวน นร ให้ถูกต้อง");
+                alert("กรุณากรอก ชั้น (อ/ป/ม) และ จำนวน นร ให้ถูกต้อง");
                 return;
             }
 
@@ -487,12 +465,7 @@
 
         function editRowInline(index, field, newValue) {
             if (field === 'classId') {
-                let val = newValue.trim();
-                let matches = val.match(/\d+$/);
-                if (matches && (val.includes("ปอ") || val.length > matches[0].length)) {
-                    val = "ป " + matches[0];
-                }                
-                tableAData[index].classId = val || tableAData[index].classId;
+                tableAData[index].classId = newValue.trim() || tableAData[index].classId;
             } else if (field === 'amount') {
                 const parsedAmount = parseInt(newValue) || 0;
                 tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
@@ -533,7 +506,7 @@
         function renderTableA() {
             let html = `<h3>Table A (Data Log)</h3>
             <table>
-                <thead><tr><th>ชั้น ป.</th><th>จำนวน นร</th><th>จัดการข้อมูล</th></tr></thead>
+                <thead><tr><th>ชั้น</th><th>จำนวน นร</th><th>จัดการข้อมูล</th></tr></thead>
                 <tbody>`;
             
             if (tableAData.length === 0) {
@@ -555,12 +528,19 @@
 
         function generateTableBLogic(data) {
             const tableB = []; let currentBook = 1; let currentPage = 1;
-            data.forEach(item => {
+            data.forEach((item, originalIndex) => {
                 let amountLeft = item.amount; let firstRowForClass = true;
                 while (amountLeft > 0) {
                     let bookEndPage = currentBook * 50; let pagesLeftInBook = bookEndPage - currentPage + 1;
                     let pagesToAllocate = Math.min(amountLeft, pagesLeftInBook); let startNo = currentPage; let endNo = currentPage + pagesToAllocate - 1;
-                    tableB.push({ class: item.classId, amount: firstRowForClass ? item.amount : "", bookNo: currentBook, startNo: startNo, endNo: endNo });
+                    tableB.push({ 
+                        class: item.classId, 
+                        amount: firstRowForClass ? item.amount : "", 
+                        bookNo: currentBook, 
+                        startNo: startNo, 
+                        endNo: endNo,
+                        dataIndex: originalIndex 
+                    });
                     amountLeft -= pagesToAllocate; currentPage = endNo + 1; firstRowForClass = false;
                     if (currentPage > bookEndPage) { currentBook++; }
                 }
@@ -569,12 +549,20 @@
         }
 
         function renderTableB(results) {
-            let html = `<table><thead><tr><th>ชั้น ป.</th><th>จำนวน นร</th><th>เล่มที่</th><th>เลขเริ่มต้น</th><th>เลขสุดท้าย</th></tr></thead><tbody>`;
+            let html = `<table><thead><tr><th>ชั้น</th><th>จำนวน นร</th><th>เล่มที่</th><th>เลขเริ่มต้น</th><th>เลขสุดท้าย</th></tr></thead><tbody>`;
             if (results.length === 0) {
                 html += `<tr><td colspan="5" style="color: #999;">กำลังรอข้อมูลบันทึกเข้าสู่ระบบ...</td></tr>`;
             } else {
                 results.forEach(row => {
-                    html += `<tr><td>${row.class}</td><td>${row.amount}</td><td>${row.bookNo}</td><td>${row.startNo}</td><td>${row.endNo}</td></tr>`;
+                    html += `<tr>
+                        <td>
+                            <input type="text" class="editable-input" value="${row.class}" oninput="editRowInline(${row.dataIndex}, 'classId', this.value)">
+                        </td>
+                        <td>${row.amount}</td>
+                        <td>${row.bookNo}</td>
+                        <td>${row.startNo}</td>
+                        <td>${row.endNo}</td>
+                    </tr>`;
                 });
             }
             html += `</tbody></table>`;
