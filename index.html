@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp02</title>
+    <title>Dynamic Cash Bill Book Entry System - imp03</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -154,7 +154,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp02)</h2>
+    <h2>Cash Bill Book Entry System (imp03)</h2>
 
     <div class="dashboard-container">
         
@@ -162,15 +162,15 @@
             <div class="control-panel">
                 <div class="form-group">
                     <label for="companyInput">Company Name:</label>
-                    <input type="text" id="companyInput" placeholder="N&T Trading" oninput="updateCompanyName(this)" onkeydown="handleCompanyKeyDown(event)">
+                    <input type="text" id="companyInput" placeholder="N&T Trading" oninput="handleAndroidCompanyInput(this)" onkeydown="handleCompanyKeyDown(event)">
                 </div>
                 <div class="form-group">
                     <label for="classInput">Class:</label>
-                    <input type="text" id="classInput" placeholder="e.g., อ 1, ป 2, ม 1" onkeydown="handleClassKeyDown(event)">
+                    <input type="text" id="classInput" placeholder="e.g., อ 1, ป 2, ม 1" oninput="handleAndroidClassInput(this)" onkeydown="handleClassKeyDown(event)">
                 </div>
                 <div class="form-group">
                     <label for="amountInput">Amount:</label>
-                    <input type="text" id="amountInput" placeholder="Auto-filled via Voice" onkeydown="handleAmountKeyDown(event)">
+                    <input type="text" id="amountInput" placeholder="Auto-filled via Voice" oninput="handleAndroidAmountInput(this)" onkeydown="handleAmountKeyDown(event)">
                 </div>
                 
                 <div class="button-group">
@@ -182,7 +182,7 @@
 
                 <div class="voice-status-bar" id="voiceStatusBar">
                     <span class="voice-badge">Voice Log</span>
-                    <span id="voiceTranscriptText" style="font-style: italic; color: #666;">Manual mode active (Microphone Off)</span>
+                    <span id="voiceTranscriptText" style="font-style: italic; color: #666;">Manual / Mobile mode active</span>
                 </div>
             </div>
 
@@ -277,11 +277,54 @@
             return processed.trim();
         }
 
-        /* --- WEB SPEECH API INTEGRATION --- */
+        /* --- ANDROID DIRECT INPUT HANDLERS --- */
+        function handleAndroidCompanyInput(input) {
+            updateCompanyName(input);
+            document.getElementById('voiceTranscriptText').innerText = `Direct Input: "${input.value}"`;
+        }
+
+        function handleAndroidClassInput(input) {
+            const rawVal = input.value;
+            const normalized = normalizeThaiSpeech(rawVal);
+            
+            // Check if Android voice typed full line e.g., "ป 1 75" or "อนุบาล 2 40"
+            let numbersFound = normalized.match(/\d+/g);
+            if (numbersFound && numbersFound.length >= 2) {
+                clearTimeout(voiceSubmissionTimer);
+
+                let classNum = numbersFound[0];
+                let amountNum = numbersFound[1];
+
+                let prefix = "ป";
+                if (normalized.includes("อ") || rawVal.includes("อนุบาล")) {
+                    prefix = "อ";
+                } else if (normalized.includes("ม") || rawVal.includes("มัธยม")) {
+                    prefix = "ม";
+                }
+
+                input.value = `${prefix} ${classNum}`;
+                document.getElementById('amountInput').value = amountNum;
+                document.getElementById('voiceTranscriptText').innerText = `Android Voice: ${prefix} ${classNum}, ${amountNum}`;
+
+                voiceSubmissionTimer = setTimeout(() => {
+                    addDataRow();
+                }, 700);
+            }
+        }
+
+        function handleAndroidAmountInput(input) {
+            const normalized = normalizeThaiSpeech(input.value);
+            let numbersFound = normalized.match(/\d+/g);
+            if (numbersFound && numbersFound.length > 0) {
+                input.value = numbersFound[0];
+            }
+        }
+
+        /* --- WEB SPEECH API (DESKTOP) --- */
         function initWebSpeechAPI() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
-                document.getElementById('voiceTranscriptText').innerText = "Web Speech API not supported on this browser.";
+                document.getElementById('voiceTranscriptText').innerText = "Using Mobile Input Mode";
                 return;
             }
 
@@ -297,8 +340,6 @@
                 document.getElementById('voiceTranscriptText').innerText = `"${rawTranscript}"`;
                 
                 const normalizedText = normalizeThaiSpeech(rawTranscript);
-                console.log("Raw:", rawTranscript, "-> Normalized:", normalizedText);
-                
                 processVoiceTranscript(normalizedText, rawTranscript);
             };
 
@@ -320,7 +361,7 @@
             isUserIntentionalStop = false;
             try {
                 recognition.start();
-                document.getElementById('voiceTranscriptText').innerText = "Listening... Speak in Thai (e.g. อ 1 30, ป 2 50, ม 1 100)...";
+                document.getElementById('voiceTranscriptText').innerText = "Listening... Speak in Thai...";
             } catch (e) {}
         }
 
@@ -328,7 +369,7 @@
             if (recognition) {
                 isUserIntentionalStop = true;
                 recognition.stop();
-                document.getElementById('voiceTranscriptText').innerText = "Manual mode active (Microphone Off)";
+                document.getElementById('voiceTranscriptText').innerText = "Manual mode active";
             }
         }
 
@@ -354,15 +395,11 @@
                     prefix = "อ";
                 } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
                     prefix = "ม";
-                } else if (normalizedText.includes("ป") || rawText.includes("ประถม")) {
-                    prefix = "ป";
                 }
 
                 document.getElementById('classInput').value = `${prefix} ${classNum}`;
                 document.getElementById('amountInput').value = amountNum;
 
-                console.log(`🎯 Voice parsed: Class ${prefix} ${classNum}, Amount ${amountNum}`);
-                
                 voiceSubmissionTimer = setTimeout(() => {
                     addDataRow();
                 }, 600);
