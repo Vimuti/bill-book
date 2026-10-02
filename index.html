@@ -417,6 +417,7 @@
             processed = processed.replace(/มัธยม/g, "ม ");
             processed = processed.replace(/ม\./g, "ม ");
             processed = processed.replace(/ชั้น\s*ม/g, "ม ");
+            processed = processed.replace(/ชั้นม\s*ม/g, "ม ");
 
             const wordMap = {
                 "ศูนย์": 0, "หนึ่ง": 1, "สอง": 2, "สาม": 3, "สี่": 4, "ห้า": 5,
