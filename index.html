@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp06</title>
+    <title>Dynamic Cash Bill Book Entry System - imp08</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -96,7 +96,6 @@
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
 
-        /* Voice Log Section Container */
         .voice-log-container {
             display: flex;
             align-items: stretch;
@@ -201,7 +200,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp06)</h2>
+    <h2>Cash Bill Book Entry System (imp08)</h2>
 
     <div class="dashboard-container">
         
@@ -265,7 +264,7 @@
         let recognition = null;
         let isUserIntentionalStop = false;
         let voiceSubmissionTimer = null;
-        let lastFocusedInputId = 'companyInput';
+        let lastFocusedInput = null;
 
         window.addEventListener('beforeunload', () => {
             const isAutoClearChecked = document.getElementById('autoClearCheckbox').checked;
@@ -331,23 +330,51 @@
             }
         }
 
+        /* --- SMART AUTO-SORTING RANK ENGINE --- */
+        function getClassSortRank(classStr) {
+            if (!classStr) return 999;
+            const str = classStr.trim();
+            const numbers = str.match(/\d+/);
+            const num = numbers ? parseInt(numbers[0], 10) : 0;
+
+            if (str.startsWith('อ')) {
+                return 100 + num;
+            } else if (str.startsWith('ป')) {
+                return 200 + num;
+            } else if (str.startsWith('ม')) {
+                return 300 + num;
+            }
+            return 400;
+        }
+
+        function sortTableAData() {
+            tableAData.sort((a, b) => getClassSortRank(a.classId) - getClassSortRank(b.classId));
+        }
+
         /* --- VOICE LOG TARGETED DELETE HANDLER --- */
         function deleteLastVoiceUpdate() {
             const transcriptSpan = document.getElementById('voiceTranscriptText');
             transcriptSpan.innerText = isVoiceModeActive ? "Listening..." : "Manual / Mobile mode active";
 
-            if (lastFocusedInputId === 'companyInput') {
+            const targetId = lastFocusedInput ? lastFocusedInput.id : 'companyInput';
+
+            if (targetId === 'companyInput') {
                 document.getElementById('companyInput').value = "";
                 document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
                 saveDataToLocalStorage();
                 forceVisualFocus('companyInput');
-            } else if (lastFocusedInputId === 'classInput' || lastFocusedInputId === 'amountInput') {
+            } else if (targetId === 'classInput' || targetId === 'amountInput') {
                 if (tableAData.length > 0) {
                     tableAData.pop();
                     saveDataToLocalStorage();
                     updateSystem();
                 }
                 forceVisualFocus('classInput');
+            } else if (lastFocusedInput && lastFocusedInput.dataset && lastFocusedInput.dataset.rowIndex !== undefined) {
+                const index = parseInt(lastFocusedInput.dataset.rowIndex);
+                if (!isNaN(index) && index >= 0 && index < tableAData.length) {
+                    removeDataRow(index);
+                }
             }
         }
 
@@ -486,8 +513,36 @@
             }
         }
 
+        /* --- TARGETED VOICE INPUT & INLINE EDITING PROCESSOR --- */
         function processVoiceTranscript(normalizedText, rawText) {
             const activeEl = document.activeElement;
+
+            if (activeEl && activeEl.classList.contains('editable-input')) {
+                const index = parseInt(activeEl.dataset.rowIndex);
+                const fieldType = activeEl.dataset.fieldType;
+
+                if (!isNaN(index) && index >= 0 && index < tableAData.length) {
+                    if (fieldType === 'classId') {
+                        let prefix = "ป";
+                        if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
+                            prefix = "อ";
+                        } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
+                            prefix = "ม";
+                        }
+
+                        let numbers = normalizedText.match(/\d+/g);
+                        let classVal = numbers ? `${prefix} ${numbers[0]}` : normalizedText;
+                        
+                        editRowInline(index, 'classId', classVal);
+                    } else if (fieldType === 'amount') {
+                        let numbers = normalizedText.match(/\d+/g);
+                        if (numbers && numbers.length > 0) {
+                            editRowInline(index, 'amount', parseInt(numbers[0]));
+                        }
+                    }
+                    return;
+                }
+            }
 
             if (activeEl && activeEl.id === 'companyInput') {
                 const companyInput = document.getElementById('companyInput');
@@ -525,9 +580,7 @@
                 if (e.target.tagName === 'INPUT') {
                     document.querySelectorAll('input').forEach(input => input.classList.remove('active-focus'));
                     e.target.classList.add('active-focus');
-                    if (e.target.id) {
-                        lastFocusedInputId = e.target.id;
-                    }
+                    lastFocusedInput = e.target;
                 }
             });
         }
@@ -538,7 +591,7 @@
                 document.querySelectorAll('input').forEach(input => input.classList.remove('active-focus'));
                 el.classList.add('active-focus');
                 el.focus();
-                lastFocusedInputId = elementId;
+                lastFocusedInput = el;
             }
         }
 
@@ -558,7 +611,7 @@
         function applyModeButtonUI() {
             const btn = document.getElementById('modeToggleButton');
             if (isVoiceModeActive) {
-                btn.innerText = "🎙️";
+                btn.innerText = "🎙️️";
                 btn.className = "btn-icon-mode mode-voice-active";
                 btn.title = "Current Mode: Voice Listening Active";
             } else {
@@ -613,24 +666,21 @@
             amountInput.value = '';
             forceVisualFocus('classInput'); 
 
-            saveDataToLocalStorage();
             updateSystem();
         }
 
         function editRowInline(index, field, newValue) {
             if (field === 'classId') {
-                tableAData[index].classId = newValue.trim() || tableAData[index].classId;
+                tableAData[index].classId = String(newValue).trim() || tableAData[index].classId;
             } else if (field === 'amount') {
                 const parsedAmount = parseInt(newValue) || 0;
                 tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
             }
-            saveDataToLocalStorage();
             updateSystem(); 
         }
 
         function removeDataRow(index) {
             tableAData.splice(index, 1);
-            saveDataToLocalStorage();
             updateSystem();
         }
 
@@ -649,10 +699,14 @@
         function printTableB() { window.print(); }
 
         function updateSystem() {
+            sortTableAData();
+            saveDataToLocalStorage();
             renderTableA();
+            
             const total = tableAData.reduce((sum, item) => sum + item.amount, 0);
             const totalElement = document.getElementById('total-amount');
             if (totalElement) totalElement.innerText = total;
+            
             const tableBData = generateTableBLogic(tableAData);
             renderTableB(tableBData);
         }
@@ -668,8 +722,16 @@
             } else {
                 tableAData.forEach((item, index) => {
                     html += `<tr>
-                        <td><input type="text" class="editable-input" value="${item.classId}" oninput="editRowInline(${index}, 'classId', this.value)"></td>
-                        <td><input type="text" class="editable-input" value="${item.amount}" oninput="editRowInline(${index}, 'amount', this.value)"></td>
+                        <td>
+                            <input type="text" class="editable-input" value="${item.classId}" 
+                                data-row-index="${index}" data-field-type="classId" 
+                                oninput="editRowInline(${index}, 'classId', this.value)">
+                        </td>
+                        <td>
+                            <input type="text" class="editable-input" value="${item.amount}" 
+                                data-row-index="${index}" data-field-type="amount" 
+                                oninput="editRowInline(${index}, 'amount', this.value)">
+                        </td>
                         <td><button class="btn btn-danger btn-sm" onclick="removeDataRow(${index})">ลบ</button></td>
                     </tr>`;
                 });
@@ -710,7 +772,9 @@
                 results.forEach(row => {
                     html += `<tr>
                         <td>
-                            <input type="text" class="editable-input" value="${row.class}" oninput="editRowInline(${row.dataIndex}, 'classId', this.value)">
+                            <input type="text" class="editable-input" value="${row.class}" 
+                                data-row-index="${row.dataIndex}" data-field-type="classId" 
+                                oninput="editRowInline(${row.dataIndex}, 'classId', this.value)">
                         </td>
                         <td>${row.amount}</td>
                         <td>${row.bookNo}</td>
