@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp09</title>
+    <title>Dynamic Cash Bill Book Entry System - imp09 (Voice & Manual Realtime Update)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -199,7 +199,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp09)</h2>
+    <h2>Cash Bill Book Entry System (imp09 Base)</h2>
 
     <div class="dashboard-container">
         
@@ -263,6 +263,7 @@
         let recognition = null;
         let isUserIntentionalStop = false;
         let voiceSubmissionTimer = null;
+        let inlineDebounceTimer = null; 
         let lastFocusedInput = null;
 
         window.addEventListener('beforeunload', () => {
@@ -434,7 +435,7 @@
                 let classNum = numbersFound[0];
                 let amountNum = numbersFound[1];
 
-                let prefix = "ป";
+                let prefix = "ป"; 
                 if (normalized.includes("อ") || rawVal.includes("อนุบาล")) {
                     prefix = "อ";
                 } else if (normalized.includes("ม") || rawVal.includes("มัธยม")) {
@@ -512,10 +513,11 @@
             }
         }
 
-        /* --- TARGETED VOICE INPUT & INLINE EDITING PROCESSOR --- */
+        /* --- TARGETED VOICE INPUT & INLINE EDITING PROCESSOR (REALTIME UPDATE FIXED) --- */
         function processVoiceTranscript(normalizedText, rawText) {
             const activeEl = document.activeElement;
 
+            // แก้ไขข้อมูลใน Table A Inline Cell ด้วยเสียง
             if (activeEl && activeEl.classList.contains('editable-input')) {
                 const index = parseInt(activeEl.dataset.rowIndex);
                 const fieldType = activeEl.dataset.fieldType;
@@ -523,28 +525,28 @@
                 if (!isNaN(index) && index >= 0 && index < tableAData.length) {
                     if (fieldType === 'classId') {
                         let prefix = "ป";
-                        if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
-                            prefix = "อ";
-                        } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
-                            prefix = "ม";
-                        }
-
+                        if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) prefix = "อ";
+                        else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) prefix = "ม";
+                        
                         let numbers = normalizedText.match(/\d+/g);
                         let classVal = numbers ? `${prefix} ${numbers[0]}` : normalizedText;
                         
                         activeEl.value = classVal;
-                        saveInlineEdit(index, 'classId', classVal);
+                        // เรียกฟังก์ชันแก้ไขข้อมูล พร้อมสั่ง Timeout อัปเดต Table B Real-time
+                        handleInlineInput(index, 'classId', classVal);
                     } else if (fieldType === 'amount') {
                         let numbers = normalizedText.match(/\d+/g);
                         if (numbers && numbers.length > 0) {
                             activeEl.value = numbers[0];
-                            saveInlineEdit(index, 'amount', parseInt(numbers[0]));
+                            // เรียกฟังก์ชันแก้ไขข้อมูล พร้อมสั่ง Timeout อัปเดต Table B Real-time
+                            handleInlineInput(index, 'amount', parseInt(numbers[0]));
                         }
                     }
                     return;
                 }
             }
 
+            // แก้ไข ชื่อบริษัท/โรงเรียน ด้วยเสียง
             if (activeEl && activeEl.id === 'companyInput') {
                 const companyInput = document.getElementById('companyInput');
                 companyInput.value = normalizedText;
@@ -552,6 +554,7 @@
                 return;
             }
 
+            // ใส่ข้อมูลคู่ (ชั้น + จำนวน) ผ่านช่องสแกนด้วยเสียง
             let numbersFound = normalizedText.match(/\d+/g);
             if (numbersFound && numbersFound.length >= 2) {
                 clearTimeout(voiceSubmissionTimer);
@@ -560,11 +563,8 @@
                 let amountNum = numbersFound[1];
 
                 let prefix = "ป";
-                if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
-                    prefix = "อ";
-                } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
-                    prefix = "ม";
-                }
+                if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) prefix = "อ";
+                else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) prefix = "ม";
 
                 document.getElementById('classInput').value = `${prefix} ${classNum}`;
                 document.getElementById('amountInput').value = amountNum;
@@ -670,19 +670,37 @@
             updateSystem();
         }
 
-        /* --- NON-DESTRUCTIVE INLINE EDIT HANDLERS --- */
-        function saveInlineEdit(index, field, newValue) {
+        /* --- REALTIME INLINE EDIT HANDLERS (VOICE & MANUAL SUPPORT) --- */
+        function handleInlineInput(index, field, value) {
+            // 1. อัปเดตข้อมูลใน Array ทันที
             if (field === 'classId') {
-                tableAData[index].classId = String(newValue).trim() || tableAData[index].classId;
+                tableAData[index].classId = String(value).trim();
             } else if (field === 'amount') {
-                const parsedAmount = parseInt(newValue) || 0;
-                tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
+                const parsedAmount = parseInt(value) || 0;
+                tableAData[index].amount = parsedAmount;
             }
+
+            // 2. คำนวณยอดรวมใน Table A ทันที
+            const total = tableAData.reduce((sum, item) => sum + item.amount, 0);
+            const totalElement = document.getElementById('total-amount');
+            if (totalElement) totalElement.innerText = total;
+
+            // 3. เริ่ม Timeout (400ms) แล้วทำการ Render Table B
+            clearTimeout(inlineDebounceTimer);
+            inlineDebounceTimer = setTimeout(() => {
+                saveDataToLocalStorage();
+                const tableBData = generateTableBLogic(tableAData);
+                renderTableB(tableBData);
+            }, 400);
         }
 
-        function handleInlineKeyDown(event, index, field) {
+        function handleInlineBlur() {
+            updateSystem();
+        }
+
+        function handleInlineKeyDown(event) {
             if (event.key === 'Enter') {
-                event.target.blur(); // Triggers blur event to sort and update
+                event.target.blur();
             }
         }
 
@@ -732,16 +750,16 @@
                         <td>
                             <input type="text" class="editable-input" value="${item.classId}" 
                                 data-row-index="${index}" data-field-type="classId" 
-                                onchange="saveInlineEdit(${index}, 'classId', this.value)"
-                                onblur="updateSystem()"
-                                onkeydown="handleInlineKeyDown(event, ${index}, 'classId')">
+                                oninput="handleInlineInput(${index}, 'classId', this.value)"
+                                onblur="handleInlineBlur()"
+                                onkeydown="handleInlineKeyDown(event)">
                         </td>
                         <td>
                             <input type="text" class="editable-input" value="${item.amount}" 
                                 data-row-index="${index}" data-field-type="amount" 
-                                onchange="saveInlineEdit(${index}, 'amount', this.value)"
-                                onblur="updateSystem()"
-                                onkeydown="handleInlineKeyDown(event, ${index}, 'amount')">
+                                oninput="handleInlineInput(${index}, 'amount', this.value)"
+                                onblur="handleInlineBlur()"
+                                onkeydown="handleInlineKeyDown(event)">
                         </td>
                         <td><button class="btn btn-danger btn-sm" onclick="removeDataRow(${index})">ลบ</button></td>
                     </tr>`;
