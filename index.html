@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp08</title>
+    <title>Dynamic Cash Bill Book Entry System - imp09</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -161,17 +161,16 @@
             width: 90%; 
             padding: 4px; 
             text-align: center; 
-            border: 1px solid transparent; 
-            background: transparent;
+            border: 1px solid #ddd; 
+            background: #fff;
             font-size: 14px;
+            border-radius: 3px;
             transition: all 0.2s ease;
         }
-        .editable-input:hover { border: 1px dashed #999; background: #fffdf0; border-radius: 3px; }
-        .editable-input.active-focus { 
+        .editable-input:focus { 
             border: 1px solid #007bff; 
             background: #f0f7ff; 
             outline: none; 
-            border-radius: 3px; 
         }
 
         .logo-wrapper { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
@@ -200,7 +199,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp08)</h2>
+    <h2>Cash Bill Book Entry System (imp09)</h2>
 
     <div class="dashboard-container">
         
@@ -533,11 +532,13 @@
                         let numbers = normalizedText.match(/\d+/g);
                         let classVal = numbers ? `${prefix} ${numbers[0]}` : normalizedText;
                         
-                        editRowInline(index, 'classId', classVal);
+                        activeEl.value = classVal;
+                        saveInlineEdit(index, 'classId', classVal);
                     } else if (fieldType === 'amount') {
                         let numbers = normalizedText.match(/\d+/g);
                         if (numbers && numbers.length > 0) {
-                            editRowInline(index, 'amount', parseInt(numbers[0]));
+                            activeEl.value = numbers[0];
+                            saveInlineEdit(index, 'amount', parseInt(numbers[0]));
                         }
                     }
                     return;
@@ -611,7 +612,7 @@
         function applyModeButtonUI() {
             const btn = document.getElementById('modeToggleButton');
             if (isVoiceModeActive) {
-                btn.innerText = "🎙️️";
+                btn.innerText = "🎙";
                 btn.className = "btn-icon-mode mode-voice-active";
                 btn.title = "Current Mode: Voice Listening Active";
             } else {
@@ -669,14 +670,20 @@
             updateSystem();
         }
 
-        function editRowInline(index, field, newValue) {
+        /* --- NON-DESTRUCTIVE INLINE EDIT HANDLERS --- */
+        function saveInlineEdit(index, field, newValue) {
             if (field === 'classId') {
                 tableAData[index].classId = String(newValue).trim() || tableAData[index].classId;
             } else if (field === 'amount') {
                 const parsedAmount = parseInt(newValue) || 0;
                 tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
             }
-            updateSystem(); 
+        }
+
+        function handleInlineKeyDown(event, index, field) {
+            if (event.key === 'Enter') {
+                event.target.blur(); // Triggers blur event to sort and update
+            }
         }
 
         function removeDataRow(index) {
@@ -725,12 +732,16 @@
                         <td>
                             <input type="text" class="editable-input" value="${item.classId}" 
                                 data-row-index="${index}" data-field-type="classId" 
-                                oninput="editRowInline(${index}, 'classId', this.value)">
+                                onchange="saveInlineEdit(${index}, 'classId', this.value)"
+                                onblur="updateSystem()"
+                                onkeydown="handleInlineKeyDown(event, ${index}, 'classId')">
                         </td>
                         <td>
                             <input type="text" class="editable-input" value="${item.amount}" 
                                 data-row-index="${index}" data-field-type="amount" 
-                                oninput="editRowInline(${index}, 'amount', this.value)">
+                                onchange="saveInlineEdit(${index}, 'amount', this.value)"
+                                onblur="updateSystem()"
+                                onkeydown="handleInlineKeyDown(event, ${index}, 'amount')">
                         </td>
                         <td><button class="btn btn-danger btn-sm" onclick="removeDataRow(${index})">ลบ</button></td>
                     </tr>`;
@@ -771,11 +782,7 @@
             } else {
                 results.forEach(row => {
                     html += `<tr>
-                        <td>
-                            <input type="text" class="editable-input" value="${row.class}" 
-                                data-row-index="${row.dataIndex}" data-field-type="classId" 
-                                oninput="editRowInline(${row.dataIndex}, 'classId', this.value)">
-                        </td>
+                        <td>${row.class}</td>
                         <td>${row.amount}</td>
                         <td>${row.bookNo}</td>
                         <td>${row.startNo}</td>
