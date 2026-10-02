@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp09</title>
+    <title>Dynamic Cash Bill Book Entry System - imp10</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -199,7 +199,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp09)</h2>
+    <h2>Cash Bill Book Entry System (imp10)</h2>
 
     <div class="dashboard-container">
         
@@ -377,6 +377,22 @@
             }
         }
 
+        /* --- ACCURATE THAI CLASS PREFIX DETECTOR --- */
+        function detectThaiClassPrefix(text) {
+            const str = text.toLowerCase();
+
+            // Check Kindergarten first
+            if (str.includes("อนุบาล") || str.includes("อ.") || /\bอ\b|\bอ\d/.test(str)) {
+                return "อ";
+            }
+            // Check Secondary next
+            if (str.includes("มัธยม") || str.includes("ม.") || /\bม\b|\bม\d/.test(str)) {
+                return "ม";
+            }
+            // Default to Primary (ป) if "ประถม", "ป", or default
+            return "ป";
+        }
+
         /* --- THAI SPEECH NORMALIZATION --- */
         function normalizeThaiSpeech(text) {
             let processed = text;
@@ -433,13 +449,7 @@
 
                 let classNum = numbersFound[0];
                 let amountNum = numbersFound[1];
-
-                let prefix = "ป";
-                if (normalized.includes("อ") || rawVal.includes("อนุบาล")) {
-                    prefix = "อ";
-                } else if (normalized.includes("ม") || rawVal.includes("มัธยม")) {
-                    prefix = "ม";
-                }
+                let prefix = detectThaiClassPrefix(rawVal + " " + normalized);
 
                 input.value = `${prefix} ${classNum}`;
                 document.getElementById('amountInput').value = amountNum;
@@ -522,13 +532,7 @@
 
                 if (!isNaN(index) && index >= 0 && index < tableAData.length) {
                     if (fieldType === 'classId') {
-                        let prefix = "ป";
-                        if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
-                            prefix = "อ";
-                        } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
-                            prefix = "ม";
-                        }
-
+                        let prefix = detectThaiClassPrefix(rawText + " " + normalizedText);
                         let numbers = normalizedText.match(/\d+/g);
                         let classVal = numbers ? `${prefix} ${numbers[0]}` : normalizedText;
                         
@@ -558,13 +562,7 @@
 
                 let classNum = numbersFound[0];
                 let amountNum = numbersFound[1];
-
-                let prefix = "ป";
-                if (normalizedText.includes("อ") || rawText.includes("อนุบาล")) {
-                    prefix = "อ";
-                } else if (normalizedText.includes("ม") || rawText.includes("มัธยม")) {
-                    prefix = "ม";
-                }
+                let prefix = detectThaiClassPrefix(rawText + " " + normalizedText);
 
                 document.getElementById('classInput').value = `${prefix} ${classNum}`;
                 document.getElementById('amountInput').value = amountNum;
