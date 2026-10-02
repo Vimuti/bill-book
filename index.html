@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Dynamic Cash Bill Book Entry System - imp03</title>
+    <title>Dynamic Cash Bill Book Entry System - imp05</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         h2 { margin-bottom: 20px; font-size: 26px; }
@@ -23,7 +23,7 @@
         .form-group { margin-bottom: 12px; display: flex; align-items: center; }
         .form-group label { width: 130px; font-weight: bold; font-size: 14px; }
         
-        .form-group input { 
+        .form-group input[type="text"] { 
             padding: 8px; 
             flex: 1; 
             border: 1px solid #ccc; 
@@ -41,7 +41,23 @@
             box-shadow: 0 0 4px rgba(0, 123, 255, 0.15);
         }
         
-        .button-group { display: flex; gap: 6px; margin-top: 18px; justify-content: flex-start; align-items: center; }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #555;
+            user-select: none;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .button-group { display: flex; gap: 6px; margin-top: 14px; justify-content: flex-start; align-items: center; }
         
         .btn { padding: 9px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; height: 35px; box-sizing: border-box; }
         .btn-primary { background-color: #007bff; color: white; }
@@ -154,7 +170,7 @@
 </head>
 <body>
 
-    <h2>Cash Bill Book Entry System (imp03)</h2>
+    <h2>Cash Bill Book Entry System (imp05)</h2>
 
     <div class="dashboard-container">
         
@@ -171,6 +187,11 @@
                 <div class="form-group">
                     <label for="amountInput">Amount:</label>
                     <input type="text" id="amountInput" placeholder="Auto-filled via Voice" oninput="handleAndroidAmountInput(this)" onkeydown="handleAmountKeyDown(event)">
+                </div>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="autoClearCheckbox" onchange="handleCheckboxToggle(this)" checked>
+                    <label for="autoClearCheckbox">Auto-Clear data on page refresh / close</label>
                 </div>
                 
                 <div class="button-group">
@@ -211,19 +232,44 @@
         let isUserIntentionalStop = false;
         let voiceSubmissionTimer = null;
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedCompany = localStorage.getItem('bill_system_company');
-            const savedDataLog = localStorage.getItem('bill_system_datalog');
+        window.addEventListener('beforeunload', () => {
+            const isAutoClearChecked = document.getElementById('autoClearCheckbox').checked;
+            if (isAutoClearChecked) {
+                localStorage.removeItem('bill_system_datalog');
+                localStorage.removeItem('bill_system_company');
+            }
+        });
 
-            if (savedCompany && savedCompany.trim() !== "") {
-                document.getElementById('companyInput').value = savedCompany;
-                document.getElementById('tableBTitle').innerText = savedCompany;
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedCheckboxState = localStorage.getItem('bill_system_autoclear');
+            const autoClearCheckbox = document.getElementById('autoClearCheckbox');
+
+            if (savedCheckboxState !== null) {
+                autoClearCheckbox.checked = (savedCheckboxState === 'true');
             } else {
-                document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
+                autoClearCheckbox.checked = true; // Default behavior
             }
 
-            if (savedDataLog) {
-                tableAData = JSON.parse(savedDataLog);
+            if (autoClearCheckbox.checked) {
+                localStorage.removeItem('bill_system_datalog');
+                localStorage.removeItem('bill_system_company');
+                document.getElementById('companyInput').value = "";
+                document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
+                tableAData = [];
+            } else {
+                const savedCompany = localStorage.getItem('bill_system_company');
+                const savedDataLog = localStorage.getItem('bill_system_datalog');
+
+                if (savedCompany && savedCompany.trim() !== "") {
+                    document.getElementById('companyInput').value = savedCompany;
+                    document.getElementById('tableBTitle').innerText = savedCompany;
+                } else {
+                    document.getElementById('tableBTitle').innerText = DEFAULT_COMPANY;
+                }
+
+                if (savedDataLog) {
+                    tableAData = JSON.parse(savedDataLog);
+                }
             }
 
             isVoiceModeActive = false;
@@ -236,6 +282,19 @@
 
             forceVisualFocus('companyInput');
         });
+
+        function handleCheckboxToggle(checkbox) {
+            localStorage.setItem('bill_system_autoclear', checkbox.checked);
+            saveDataToLocalStorage();
+        }
+
+        function saveDataToLocalStorage() {
+            const isAutoClearChecked = document.getElementById('autoClearCheckbox').checked;
+            if (!isAutoClearChecked) {
+                localStorage.setItem('bill_system_datalog', JSON.stringify(tableAData));
+                localStorage.setItem('bill_system_company', document.getElementById('companyInput').value.trim());
+            }
+        }
 
         /* --- THAI SPEECH NORMALIZATION --- */
         function normalizeThaiSpeech(text) {
@@ -287,7 +346,6 @@
             const rawVal = input.value;
             const normalized = normalizeThaiSpeech(rawVal);
             
-            // Check if Android voice typed full line e.g., "ป 1 75" or "อนุบาล 2 40"
             let numbersFound = normalized.match(/\d+/g);
             if (numbersFound && numbersFound.length >= 2) {
                 clearTimeout(voiceSubmissionTimer);
@@ -455,7 +513,7 @@
             const val = input.value.trim();
             const titleSpan = document.getElementById('tableBTitle');
             titleSpan.innerText = val === "" ? DEFAULT_COMPANY : val;
-            localStorage.setItem('bill_system_company', val);
+            saveDataToLocalStorage();
         }
 
         function handleCompanyKeyDown(event) {
@@ -496,7 +554,7 @@
             amountInput.value = '';
             forceVisualFocus('classInput'); 
 
-            localStorage.setItem('bill_system_datalog', JSON.stringify(tableAData));
+            saveDataToLocalStorage();
             updateSystem();
         }
 
@@ -507,13 +565,13 @@
                 const parsedAmount = parseInt(newValue) || 0;
                 tableAData[index].amount = parsedAmount > 0 ? parsedAmount : tableAData[index].amount;
             }
-            localStorage.setItem('bill_system_datalog', JSON.stringify(tableAData));
+            saveDataToLocalStorage();
             updateSystem(); 
         }
 
         function removeDataRow(index) {
             tableAData.splice(index, 1);
-            localStorage.setItem('bill_system_datalog', JSON.stringify(tableAData));
+            saveDataToLocalStorage();
             updateSystem();
         }
 
